@@ -8,12 +8,32 @@ from time import time
 from Tkinter import Frame, Button, Tk, Label, Canvas, BOTH, TOP
 from os.path import exists
 
-# TODO:
-# - get v4l properties (sizes & fps)
-# - set v4l properties (contrast, hue, sat, ..)
-# - get event from usb dev
+'''
+webcam liveview and single picture capture program. this program shows a
+picture in low resolution. when triggered (by 'space', 'enter' or the button)
+it switches the webcam to a high resolution to take a picture and stores it.
+after that it switches back to the liveview mode in low resulution.
+
+the filename for storage is counted up by pic no and role (which is aa, ab,
+ac...). it tries to determine the next pic no to not overwrite existing files.
+is stores the scans in the current directory.
+
+this program is good to be used with scanners for analog film rolls where you
+manually position the picture with a live view and scan in highest possible
+resolution.
+
+it needs tkinter, pil image, imageops and imagetk and famous v4l2capture.
+
+TODO:
+- get v4l properties (sizes & fps)
+- remove hardcoded stuff
+- set v4l properties (contrast, hue, sat, ..)
+- get event from usb dev
+- reduce redundant code
+'''
 
 def ascii_increment(val):
+	' count aa, ab, ac ... '
 	a = ord('a')
 	i = (ord(val[0]) - a) * 26 + (ord(val[1]) - a)
 	i += 1
@@ -21,6 +41,7 @@ def ascii_increment(val):
 
 class Cap(Frame):
 	def __init__(self):
+		'set defaults, create widgets, bind callbacks, start live view'
 		self.role = 'aa'
 		self.serial = 0
 		self.invert = True
@@ -32,6 +53,7 @@ class Cap(Frame):
 			self.serial += 1
 			self.filename = 'scanned.{}-{:04}.jpg'.format(self.role, self.serial, )
 		self.root = Tk()
+		self.root.title('filmroller - ' + self.filename)
 		self.root.bind('<Destroy>', self.stop_video)
 		Frame.__init__(self, self.root)
 		self.root.bind("<space>", self.single_shot)
@@ -52,6 +74,7 @@ class Cap(Frame):
 		self.start_video()
 
 	def first_role(self):
+		' jump back to first role '
 		self.serial = 0
 		self.role = 'aa'
 		self.filename = 'scanned.{}-{:04}.jpg'.format(self.role, self.serial, )
@@ -59,8 +82,10 @@ class Cap(Frame):
 			self.serial += 1
 			self.filename = 'scanned.{}-{:04}.jpg'.format(self.role, self.serial, )
 		self.fnl['text'] = self.filename
+		self.root.title('filmroller - ' + self.filename)
 
 	def inc_role(self):
+		' increment to next role '
 		self.serial = 0
 		self.role = ascii_increment(self.role)
 		self.filename = 'scanned.{}-{:04}.jpg'.format(self.role, self.serial, )
@@ -68,22 +93,27 @@ class Cap(Frame):
 			self.serial += 1
 			self.filename = 'scanned.{}-{:04}.jpg'.format(self.role, self.serial, )
 		self.fnl['text'] = self.filename
+		self.root.title('filmroller - ' + self.filename)
 
 	def set_pauseimage(self):
+		' show pause image (during shot) '
 		self.image = fromfile('image.png')
 		self.photo = PhotoImage(self.image)
 		self.canvas.create_image(320, 240, image=self.photo)
 
 	def quit(self, event):
+		' quit program '
 		self.root.destroy()
 
 	def stop_video(self, *args):
+		' stop video and release device '
 		if self.video is not None:
 			self.video.stop()
 			self.video.close()
 			self.video = None
 
 	def start_video(self):
+		' init video and start live view '
 		if self.video is not None:
 			self.stop_video()
 		self.video = Video_device(self.videodevice)
@@ -95,6 +125,7 @@ class Cap(Frame):
 		self.root.after(1, self.live_view)
 
 	def live_view(self, delta=3.0):
+		' show single pic live view and ask tk to call us again later '
 		if self.video is not None:
 			select((self.video,), (), ())
 			data = self.video.read_and_queue()
@@ -110,6 +141,7 @@ class Cap(Frame):
 			self.root.after(1, self.live_view)
 
 	def single_shot(self, *args):
+		' do a high res single shot and store it '
 		def go():
 			self.video = Video_device(self.videodevice)
 			try:
@@ -132,6 +164,7 @@ class Cap(Frame):
 				self.serial += 1
 				self.filename = 'scanned.{}-{:04}.jpg'.format(self.role, self.serial, )
 				self.fnl['text'] = self.filename
+				self.root.title('filmroller - ' + self.filename)
 				self.video.stop()
 			finally:
 				self.video.close()
@@ -142,6 +175,8 @@ class Cap(Frame):
 		self.root.after(10, go)
 
 
-app = Cap()
-app.mainloop()
-exit(0)
+def main():
+	app = Cap()
+	app.mainloop()
+
+main()
