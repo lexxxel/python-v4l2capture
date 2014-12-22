@@ -47,7 +47,7 @@ class Cap(Frame):
 		self.invert = True
 		self.bw = True
 		self.ac = True
-		self.videodevice = '/dev/video1'
+		self.videodevice = '/dev/video0'
 		self.filename = 'scanned.{}-{:04}.jpg'.format(self.role, self.serial, )
 		while exists(self.filename):
 			self.serial += 1
@@ -163,6 +163,9 @@ class Cap(Frame):
 				image.save(self.filename)
 				self.serial += 1
 				self.filename = 'scanned.{}-{:04}.jpg'.format(self.role, self.serial, )
+				while exists(self.filename):
+					self.serial += 1
+					self.filename = 'scanned.{}-{:04}.jpg'.format(self.role, self.serial, )
 				self.fnl['text'] = self.filename
 				self.root.title('filmroller - ' + self.filename)
 				self.video.stop()
