@@ -1,12 +1,13 @@
 #!/usr/bin/env python
+from select import select
+from time import time
+from os.path import exists
+from os import listdir
 from Image import frombytes, open as fromfile
 from ImageTk import PhotoImage
 from ImageOps import invert, autocontrast, grayscale
-from select import select
+from Tkinter import Frame, Button, Tk, Label, Canvas, BOTH, TOP, Checkbutton, IntVar, OptionMenu, StringVar
 from v4l2capture import Video_device
-from time import time
-from Tkinter import Frame, Button, Tk, Label, Canvas, BOTH, TOP
-from os.path import exists
 
 '''
 webcam liveview and single picture capture program. this program shows a
@@ -25,7 +26,7 @@ resolution.
 it needs tkinter, pil image, imageops and imagetk and famous v4l2capture.
 
 TODO:
-- get v4l properties (sizes & fps)
+- get v4l properties (sizes & fps: http://git.linuxtv.org/cgit.cgi/v4l-utils.git/tree/utils/v4l2-ctl/v4l2-ctl-vidcap.cpp)
 - remove hardcoded stuff
 - set v4l properties (contrast, hue, sat, ..)
 - get event from usb dev
@@ -42,21 +43,35 @@ def ascii_increment(val):
 class Cap(Frame):
 	def __init__(self):
 		' set defaults, create widgets, bind callbacks, start live view '
-		# config:
-		self.invert = True
-		self.bw = True
-		self.ac = True
-		self.videodevice = '/dev/video1'
 		# go!
 		self.root = Tk()
 		self.root.bind('<Destroy>', self.stop_video)
 		self.root.bind("<space>", self.single_shot)
 		self.root.bind("<Return>", self.single_shot)
 		self.root.bind("q", self.quit)
+		# config:
+		self.invert = IntVar()
+		self.invert.set(1)
+		self.bw = IntVar()
+		self.bw.set(0)
+		self.ac = IntVar()
+		self.ac.set(1)
+		self.videodevice = StringVar()
+		dev_names = sorted(['/dev/{}'.format(x) for x in listdir("/dev") if x.startswith("video")])
+		self.videodevice.set(dev_names[-1])
+		#
 		Frame.__init__(self, self.root)
 		self.pack()
 		self.canvas = Canvas(self, width=640, height=480, )
 		self.canvas.pack(side='top')
+		self.xt = Checkbutton(self, text='Invert', variable=self.invert)
+		self.xt.pack(side='left')
+		self.xb = Checkbutton(self, text='B/W', variable=self.bw)
+		self.xb.pack(side='left')
+		self.xa = Checkbutton(self, text='Auto', variable=self.ac)
+		self.xa.pack(side='left')
+		self.xv = OptionMenu(self, self.videodevice, *dev_names, command=self.start_video)
+		self.xv.pack(side='left')
 		self.resetrole = Button(self, text='First role', command=self.first_role)
 		self.resetrole.pack(side='left')
 		self.fnl = Label(self)
@@ -107,20 +122,26 @@ class Cap(Frame):
 			self.video.close()
 			self.video = None
 
-	def start_video(self):
+	def restart_video(self, *args):
+		self.stop_video()
+		self.root.after(1, self.start_video)
+
+	def start_video(self, *args):
 		' init video and start live view '
-		if self.video is not None:
-			self.stop_video()
-		self.video = Video_device(self.videodevice)
-		self.video.set_format(640, 480)
-		self.video.set_auto_white_balance(True)
-		self.video.set_exposure_auto(True)
-		#self.video.set_focus_auto(True)
-		self.video.create_buffers(30)
-		self.video.queue_all_buffers()
-		self.video.start()
-		#width, height, mode = self.video.get_format() # YCbCr
-		self.root.after(1, self.live_view)
+		if self.video is None:
+			self.video = Video_device(self.videodevice.get())
+			self.video.set_format(640, 480)
+			try: self.video.set_auto_white_balance(True)
+			except: pass
+			try: self.video.set_exposure_auto(True)
+			except: pass
+			try: self.video.set_focus_auto(True)
+			except: pass
+			self.video.create_buffers(30)
+			self.video.queue_all_buffers()
+			self.video.start()
+			#width, height, mode = self.video.get_format() # YCbCr
+			self.root.after(1, self.live_view)
 
 	def live_view(self, delta=3.0):
 		' show single pic live view and ask tk to call us again later '
@@ -128,11 +149,11 @@ class Cap(Frame):
 			select((self.video,), (), ())
 			data = self.video.read_and_queue()
 			self.image = frombytes('RGB', (640, 480), data)
-			if self.invert:
+			if self.invert.get():
 				self.image = invert(self.image)
-			if self.bw:
+			if self.bw.get():
 				self.image = grayscale(self.image)
-			if self.ac:
+			if self.ac.get():
 				self.image = autocontrast(self.image)
 			self.photo = PhotoImage(self.image)
 			self.canvas.create_image(320, 240, image=self.photo)
@@ -141,12 +162,15 @@ class Cap(Frame):
 	def single_shot(self, *args):
 		' do a high res single shot and store it '
 		def go():
-			self.video = Video_device(self.videodevice)
+			self.video = Video_device(self.videodevice.get())
 			try:
 				width, height = self.video.set_format(2592, 1944)
-				self.video.set_auto_white_balance(True)
-				self.video.set_exposure_auto(True)
-				#self.video.set_focus_auto(True)
+				try: self.video.set_auto_white_balance(True)
+				except: pass
+				try: self.video.set_exposure_auto(True)
+				except: pass
+				try: self.video.set_focus_auto(True)
+				except: pass
 				self.video.create_buffers(7)
 				self.video.queue_all_buffers()
 				self.video.start()
@@ -154,11 +178,11 @@ class Cap(Frame):
 					select((self.video, ), (), ())
 					data = self.video.read_and_queue()
 				image = frombytes('RGB', (width, height), data)
-				if self.invert:
+				if self.invert.get():
 					image = invert(image)
-				if self.bw:
+				if self.bw.get():
 					image = grayscale(image)
-				if self.ac:
+				if self.ac.get():
 					image = autocontrast(image)
 				image.save(self.filename)
 				self.inc_picture()
