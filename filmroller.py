@@ -3,10 +3,11 @@ from select import select
 from time import time
 from os.path import exists
 from os import listdir
+from ConfigParser import RawConfigParser
 from Image import frombytes, open as fromfile
 from ImageTk import PhotoImage
 from ImageOps import invert, autocontrast, grayscale
-from Tkinter import Frame, Button, Tk, Label, Canvas, BOTH, TOP, Checkbutton, IntVar, OptionMenu, StringVar
+from Tkinter import Frame, Button, Tk, Label, Canvas, BOTH, TOP, Checkbutton, OptionMenu, StringVar, BooleanVar
 from v4l2capture import Video_device
 
 '''
@@ -50,16 +51,24 @@ class Cap(Frame):
 		self.root.bind("<Return>", self.single_shot)
 		self.root.bind("q", self.quit)
 		# config:
+		self.config = RawConfigParser()
+		self.config.read('filmroller.conf')
+		if not self.config.has_section('global'):
+			self.config.add_section('global')
 		self.video = None
-		self.invert = IntVar()
-		self.invert.set(1)
-		self.bw = IntVar()
-		self.bw.set(0)
-		self.ac = IntVar()
-		self.ac.set(1)
-		self.videodevice = StringVar()
+		self.invert = BooleanVar(name='invert')
+		self.invert.set(self.config_get('invert', True))
+		self.invert.trace("w", self.configure)
+		self.bw = BooleanVar(name='bw')
+		self.bw.set(self.config_get('bw', False))
+		self.bw.trace("w", self.configure)
+		self.auto = BooleanVar(name='auto')
+		self.auto.set(self.config_get('auto', True))
+		self.auto.trace("w", self.configure)
+		self.videodevice = StringVar(name='videodevice')
 		dev_names = sorted(['/dev/{}'.format(x) for x in listdir("/dev") if x.startswith("video")])
-		self.videodevice.set(dev_names[-1])
+		self.videodevice.set(self.config_get('videodevice', dev_names[-1]))
+		self.videodevice.trace("w", self.configure)
 		#
 		Frame.__init__(self, self.root)
 		self.pack()
@@ -69,7 +78,7 @@ class Cap(Frame):
 		self.xt.pack(side='left')
 		self.xb = Checkbutton(self, text='B/W', variable=self.bw)
 		self.xb.pack(side='left')
-		self.xa = Checkbutton(self, text='Auto', variable=self.ac)
+		self.xa = Checkbutton(self, text='Auto', variable=self.auto)
 		self.xa.pack(side='left')
 		self.xv = OptionMenu(self, self.videodevice, *dev_names, command=self.restart_video)
 		self.xv.pack(side='left')
@@ -83,6 +92,20 @@ class Cap(Frame):
 		self.take.pack(side='right')
 		self.first_role()
 		self.start_video()
+
+	def config_get(self, name, default):
+		if not self.config.has_option('global', name):
+			return default
+		if isinstance(default, bool):
+			return self.config.getboolean('global', name)
+		else:
+			return self.config.get('global', name)
+
+	def configure(self, name, mode, cbname):
+		if cbname == 'w':
+			value = getattr(self, name).get()
+			self.config.set('global', name, str(value))
+			self.config.write(open('filmroller.conf', 'w'))
 
 	def first_role(self):
 		' jump back to first role '
@@ -160,7 +183,7 @@ class Cap(Frame):
 				self.image = invert(self.image)
 			if self.bw.get():
 				self.image = grayscale(self.image)
-			if self.ac.get():
+			if self.auto.get():
 				self.image = autocontrast(self.image)
 			self.photo = PhotoImage(self.image)
 			self.canvas.create_image(self.previewsize['size_x']/2, self.previewsize['size_y']/2, image=self.photo)
@@ -190,7 +213,7 @@ class Cap(Frame):
 					image = invert(image)
 				if self.bw.get():
 					image = grayscale(image)
-				if self.ac.get():
+				if self.auto.get():
 					image = autocontrast(image)
 				image.save(self.filename)
 				self.inc_picture()
