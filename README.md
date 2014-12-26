@@ -47,8 +47,9 @@ Example
 See capture_picture.py, capture_picture_delayed.py and list_devices.py.
 
 The program filmroller.py provided a gui to take captures from a webcam. It
-switches resolution between lowes (for a live view) and highes (for the
-snapshot). It is quite useful for use with slide and negative film scanners.
+switches resolution between lowest resolution (for a live view) and highest
+resolution (for the snapshot). It is quite useful to be used with slide and
+negative film scanners.
 
 Change log
 ==========
