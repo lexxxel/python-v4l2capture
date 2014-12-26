@@ -235,4 +235,7 @@ def main():
 	app = Cap()
 	app.mainloop()
 
-main()
+if __name__ == '__main__':
+	from sys import argv
+	main(*argv[1:])
+# vim:tw=0:nowrap
