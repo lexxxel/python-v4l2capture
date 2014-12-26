@@ -39,10 +39,16 @@ Example
 
 See capture_picture.py, capture_picture_delayed.py and list_devices.py.
 
+The program filmroller.py provided a gui to take captures from a webcam. It
+switches resolution between lowes (for a live view) and highes (for the
+snapshot). It is quite useful for use with slide and negative film scanners.
+
 Change log
 ==========
 
 (see git log for latest changes)
+
+(2014-12-26) - Added framesize and frameinterval getters.
 
 1.4 (2011-03-18) - Added support for YUV420 output.
 
