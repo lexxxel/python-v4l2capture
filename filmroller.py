@@ -23,10 +23,11 @@ this program is good to be used with scanners for analog film rolls where you
 manually position the picture with a live view and scan in highest possible
 resolution.
 
-it needs tkinter, pil image, imageops and imagetk and famous v4l2capture.
+it needs tkinter (see http://effbot.org/tkinterbook/tkinter-index.htm), pil
+image, imageops and imagetk and the famous v4l2capture.
 
 TODO:
-- remove hardcoded stuff
+- remove hardcoded config
 - set v4l properties (contrast, hue, sat, ..)
 - get event from usb dev
 - reduce redundant code
@@ -70,7 +71,7 @@ class Cap(Frame):
 		self.xb.pack(side='left')
 		self.xa = Checkbutton(self, text='Auto', variable=self.ac)
 		self.xa.pack(side='left')
-		self.xv = OptionMenu(self, self.videodevice, *dev_names, command=self.start_video)
+		self.xv = OptionMenu(self, self.videodevice, *dev_names, command=self.restart_video)
 		self.xv.pack(side='left')
 		self.resetrole = Button(self, text='First role', command=self.first_role)
 		self.resetrole.pack(side='left')
@@ -145,11 +146,14 @@ class Cap(Frame):
 			self.video.queue_all_buffers()
 			self.video.start()
 			self.root.after(1, self.live_view)
+			#self.canvas.width=640
+			#self.canvas.height=480
+			#self.canvas.pack(side='top')
 
 	def live_view(self, delta=3.0):
 		' show single pic live view and ask tk to call us again later '
 		if self.video is not None:
-			select((self.video,), (), ())
+			select((self.video, ), (), ())
 			data = self.video.read_and_queue()
 			self.image = frombytes('RGB', (self.previewsize['size_x'], self.previewsize['size_y']), data)
 			if self.invert.get():
@@ -194,10 +198,10 @@ class Cap(Frame):
 			finally:
 				self.video.close()
 				self.video = None
-			self.root.after(10, self.start_video)
+			self.root.after(1, self.start_video)
 		self.stop_video()
 		self.set_pauseimage()
-		self.root.after(10, go)
+		self.root.after(1, go)
 
 
 def main():
