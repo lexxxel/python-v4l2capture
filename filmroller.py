@@ -28,7 +28,6 @@ it needs tkinter (see http://effbot.org/tkinterbook/tkinter-index.htm), pil
 image, imageops and imagetk and the famous v4l2capture.
 
 TODO:
-- remove hardcoded config
 - set v4l properties (contrast, hue, sat, ..)
 - get event from usb dev
 - reduce redundant code
@@ -94,6 +93,7 @@ class Cap(Frame):
 		self.start_video()
 
 	def config_get(self, name, default):
+		' read a configuration entry, fallback to default if not already stored '
 		if not self.config.has_option('global', name):
 			return default
 		if isinstance(default, bool):
@@ -102,6 +102,7 @@ class Cap(Frame):
 			return self.config.get('global', name)
 
 	def configure(self, name, mode, cbname):
+		' change a configuration entry '
 		if cbname == 'w':
 			value = getattr(self, name).get()
 			self.config.set('global', name, str(value))
@@ -114,6 +115,7 @@ class Cap(Frame):
 		self.inc_picture()
 
 	def inc_picture(self):
+		' increment the picture number, jump over existing files '
 		self.filename = 'scanned.{}-{:04}.jpg'.format(self.role, self.serial, )
 		while exists(self.filename):
 			self.serial += 1
@@ -147,6 +149,7 @@ class Cap(Frame):
 			self.video = None
 
 	def restart_video(self, *args):
+		' restart video (if device changes or hangs) '
 		self.stop_video()
 		self.root.after(1, self.start_video)
 
@@ -228,6 +231,7 @@ class Cap(Frame):
 
 
 def main():
+	' main start point of the program '
 	app = Cap()
 	app.mainloop()
 
