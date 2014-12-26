@@ -51,6 +51,8 @@ switches resolution between lowest resolution (for a live view) and highest
 resolution (for the snapshot). It is quite useful to be used with slide and
 negative film scanners.
 
+![Sample picture of scanner](filmroller.device.jpg)
+
 Change log
 ==========
 

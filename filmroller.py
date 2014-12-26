@@ -31,6 +31,7 @@ TODO:
 - set v4l properties (contrast, hue, sat, ..)
 - get event from usb dev
 - reduce redundant code
+- different target dir
 '''
 
 def ascii_increment(val):
