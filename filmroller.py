@@ -2,12 +2,12 @@
 from select import select
 from time import time
 from os.path import exists
-from os import listdir
+from os import listdir, makedirs
 from ConfigParser import RawConfigParser
 from Image import frombytes, open as fromfile
 from ImageTk import PhotoImage
 from ImageOps import invert, autocontrast, grayscale
-from Tkinter import Frame, Button, Tk, Label, Canvas, BOTH, TOP, Checkbutton, OptionMenu, StringVar, BooleanVar
+from Tkinter import Frame, Button, Tk, Label, Canvas, BOTH, TOP, Checkbutton, OptionMenu, StringVar, BooleanVar, Menu
 from v4l2capture import Video_device
 
 '''
@@ -32,6 +32,8 @@ TODO:
 - get event from usb dev
 - reduce redundant code
 - different target dir
+- support rotation (incl preview)
+- show countdown during take
 '''
 
 def ascii_increment(val):
@@ -51,6 +53,15 @@ class Cap(Frame):
 		self.root.bind('<Return>', self.single_shot)
 		self.root.bind('q', self.quit)
 		self.root.bind('x', self.quit)
+		#
+		self.menu = Menu(self.root)
+		self.root.config(menu=self.menu)
+		filemenu = Menu(self.menu)
+		self.menu.add_cascade(label="File", menu=filemenu, )
+		filemenu.add_command(label="New", )
+		filemenu.add_command(label="Open...", )
+		filemenu.add_separator()
+		filemenu.add_command(label="Exit", )
 		# config:
 		self.config = RawConfigParser()
 		self.config.read('filmroller.conf')
@@ -68,8 +79,14 @@ class Cap(Frame):
 		self.auto.trace('w', self.configure)
 		self.videodevice = StringVar(name='videodevice')
 		dev_names = sorted(['/dev/{}'.format(x) for x in listdir('/dev') if x.startswith('video')])
-		self.videodevice.set(self.config_get('videodevice', dev_names[-1]))
+		d = self.config_get('videodevice', dev_names[-1])
+		if not d in dev_names:
+			d = dev_names[-1]
+		self.videodevice.set(d)
 		self.videodevice.trace('w', self.configure)
+		self.path = 'filmroller'
+		if not exists(self.path):
+			makedirs(self.path)
 		#
 		Frame.__init__(self, self.root)
 		self.pack()
@@ -118,10 +135,10 @@ class Cap(Frame):
 
 	def inc_picture(self):
 		' increment the picture number, jump over existing files '
-		self.filename = 'scanned.{}-{:04}.jpg'.format(self.role, self.serial, )
+		self.filename = '{}/scanned.{}-{:04}.jpg'.format(self.path, self.role, self.serial, )
 		while exists(self.filename):
 			self.serial += 1
-			self.filename = 'scanned.{}-{:04}.jpg'.format(self.role, self.serial, )
+			self.filename = '{}/scanned.{}-{:04}.jpg'.format(self.path, self.role, self.serial, )
 		self.root.title('filmroller - ' + self.filename)
 		self.fnl['text'] = self.filename
 		self.root.title('filmroller - ' + self.filename)
@@ -192,7 +209,7 @@ class Cap(Frame):
 				self.image = autocontrast(self.image)
 			self.photo = PhotoImage(self.image)
 			self.canvas.create_image(self.previewsize['size_x']/2, self.previewsize['size_y']/2, image=self.photo)
-			self.root.after(1, self.live_view)
+			self.root.after(3, self.live_view)
 
 	def single_shot(self, *args):
 		' do a high res single shot and store it '
@@ -213,6 +230,7 @@ class Cap(Frame):
 				for n in range(7): # wait for auto
 					select((self.video, ), (), ())
 					data = self.video.read_and_queue()
+					self.update_idletasks()
 				image = frombytes('RGB', (self.highressize['size_x'], self.highressize['size_y'], ), data)
 				if self.invert.get():
 					image = invert(image)
@@ -222,6 +240,7 @@ class Cap(Frame):
 					image = autocontrast(image)
 				image.save(self.filename)
 				self.inc_picture()
+				# self.root.beep()
 				self.video.stop()
 			finally:
 				self.video.close()
