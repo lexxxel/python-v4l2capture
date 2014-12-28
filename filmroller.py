@@ -87,10 +87,11 @@ class Cap(Frame):
 		self.path = 'filmroller'
 		if not exists(self.path):
 			makedirs(self.path)
+		self.degree = 0
 		#
 		Frame.__init__(self, self.root)
 		self.pack()
-		self.canvas = Canvas(self, width=640, height=480, )
+		self.canvas = Canvas(self, width=640, height=640, )
 		self.canvas.pack(side='top')
 		self.xt = Checkbutton(self, text='Invert', variable=self.invert)
 		self.xt.pack(side='left')
@@ -154,7 +155,7 @@ class Cap(Frame):
 		self.image = fromfile('filmroller.pause.png')
 		self.image.thumbnail((self.previewsize['size_x'], self.previewsize['size_y'], ), )
 		self.photo = PhotoImage(self.image)
-		self.canvas.create_image(self.previewsize['size_x']/2, self.previewsize['size_y']/2, image=self.photo)
+		self.canvas.create_image(640/2, 640/2, image=self.photo)
 
 	def quit(self, event):
 		' quit program '
@@ -194,6 +195,7 @@ class Cap(Frame):
 			#self.canvas.width=640
 			#self.canvas.height=480
 			#self.canvas.pack(side='top')
+			self.degree = 0
 
 	def live_view(self, delta=3.0):
 		' show single pic live view and ask tk to call us again later '
@@ -207,8 +209,10 @@ class Cap(Frame):
 				self.image = grayscale(self.image)
 			if self.auto.get():
 				self.image = autocontrast(self.image)
+			if self.degree:
+				self.image = self.image.rotate(self.degree)
 			self.photo = PhotoImage(self.image)
-			self.canvas.create_image(self.previewsize['size_x']/2, self.previewsize['size_y']/2, image=self.photo)
+			self.canvas.create_image(640/2, 640/2, image=self.photo)
 			self.root.after(3, self.live_view)
 
 	def single_shot(self, *args):
@@ -238,9 +242,11 @@ class Cap(Frame):
 					image = grayscale(image)
 				if self.auto.get():
 					image = autocontrast(image)
+				if self.degree:
+					self.image = self.image.rotate(self.degree)
 				image.save(self.filename)
 				self.inc_picture()
-				# self.root.beep()
+				self.root.bell()
 				self.video.stop()
 			finally:
 				self.video.close()
