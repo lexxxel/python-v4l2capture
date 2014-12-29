@@ -48,20 +48,15 @@ class Cap(Frame):
 		' set defaults, create widgets, bind callbacks, start live view '
 		# go!
 		self.root = Tk()
-		self.root.bind('<Destroy>', self.stop_video)
-		self.root.bind('<space>', self.single_shot)
-		self.root.bind('<Return>', self.single_shot)
-		self.root.bind('q', self.quit)
-		self.root.bind('x', self.quit)
-		#
-		self.menu = Menu(self.root)
-		self.root.config(menu=self.menu)
-		filemenu = Menu(self.menu)
-		self.menu.add_cascade(label="File", menu=filemenu, )
-		filemenu.add_command(label="New", )
-		filemenu.add_command(label="Open...", )
-		filemenu.add_separator()
-		filemenu.add_command(label="Exit", )
+		self.root.bind('<Destroy>', self.do_stop_video)
+		self.root.bind('<space>', self.do_single_shot)
+		self.root.bind('<Return>', self.do_single_shot)
+		self.root.bind('q', self.do_quit)
+		self.root.bind('i', self.do_toggle_invert)
+		self.root.bind('a', self.do_toggle_auto)
+		self.root.bind('b', self.do_toggle_bw)
+		self.root.bind('x', self.do_quit)
+		self.root.bind('<Button-3>', self.do_single_shot)
 		# config:
 		self.config = RawConfigParser()
 		self.config.read('filmroller.conf')
@@ -70,20 +65,29 @@ class Cap(Frame):
 		self.video = None
 		self.invert = BooleanVar(name='invert')
 		self.invert.set(self.config_get('invert', True))
-		self.invert.trace('w', self.configure)
+		self.invert.trace('w', self.do_configure)
 		self.bw = BooleanVar(name='bw')
 		self.bw.set(self.config_get('bw', False))
-		self.bw.trace('w', self.configure)
+		self.bw.trace('w', self.do_configure)
 		self.auto = BooleanVar(name='auto')
 		self.auto.set(self.config_get('auto', True))
-		self.auto.trace('w', self.configure)
+		self.auto.trace('w', self.do_configure)
 		self.videodevice = StringVar(name='videodevice')
 		dev_names = sorted(['/dev/{}'.format(x) for x in listdir('/dev') if x.startswith('video')])
 		d = self.config_get('videodevice', dev_names[-1])
 		if not d in dev_names:
 			d = dev_names[-1]
 		self.videodevice.set(d)
-		self.videodevice.trace('w', self.configure)
+		self.videodevice.trace('w', self.do_configure)
+		#
+		self.menu = Menu(self.root)
+		self.root.config(menu=self.menu)
+		filemenu = Menu(self.menu)
+		self.menu.add_cascade(label=self.videodevice.get(), menu=filemenu, )
+		for n in dev_names:
+			filemenu.add_command(label=n, )
+		#filemenu.add_separator()
+		#
 		self.path = 'filmroller'
 		if not exists(self.path):
 			makedirs(self.path)
@@ -93,6 +97,7 @@ class Cap(Frame):
 		self.pack()
 		self.canvas = Canvas(self, width=640, height=640, )
 		self.canvas.pack(side='top')
+		self.canvas.bind('<Button-1>', self.do_change_rotation)
 		self.xt = Checkbutton(self, text='Invert', variable=self.invert)
 		self.xt.pack(side='left')
 		self.xb = Checkbutton(self, text='B/W', variable=self.bw)
@@ -101,16 +106,34 @@ class Cap(Frame):
 		self.xa.pack(side='left')
 		self.xv = OptionMenu(self, self.videodevice, *dev_names, command=self.restart_video)
 		self.xv.pack(side='left')
-		self.resetrole = Button(self, text='First role', command=self.first_role)
+		self.resetrole = Button(self, text='First role', command=self.do_first_role)
 		self.resetrole.pack(side='left')
 		self.fnl = Label(self)
 		self.fnl.pack(side='left')
-		self.nextrole = Button(self, text='Next role', command=self.inc_role)
+		self.nextrole = Button(self, text='Next role', command=self.do_inc_role)
 		self.nextrole.pack(side='left')
-		self.take = Button(self, text='Take!', command=self.single_shot)
+		self.take = Button(self, text='Take!', command=self.do_single_shot)
 		self.take.pack(side='right')
-		self.first_role()
-		self.start_video()
+		self.do_first_role()
+		self.do_start_video()
+
+	def do_toggle_invert(self, *args):
+		self.invert.set(not self.invert.get())
+
+	def do_toggle_auto(self, *args):
+		self.auto.set(not self.auto.get())
+
+	def do_toggle_bw(self, *args):
+		self.bw.set(not self.bw.get())
+
+	def do_change_rotation(self, event):
+		' determine where the image was clicked and turn that to the top '
+		if event.x < 200:
+			self.degree = -90
+		elif event.x > 640 - 200:
+			self.degree = 90
+		else:
+			self.degree = 0
 
 	def config_get(self, name, default):
 		' read a configuration entry, fallback to default if not already stored '
@@ -121,14 +144,14 @@ class Cap(Frame):
 		else:
 			return self.config.get('global', name)
 
-	def configure(self, name, mode, cbname):
+	def do_configure(self, name, mode, cbname):
 		' change a configuration entry '
 		if cbname == 'w':
 			value = getattr(self, name).get()
 			self.config.set('global', name, str(value))
 			self.config.write(open('filmroller.conf', 'w'))
 
-	def first_role(self):
+	def do_first_role(self):
 		' jump back to first role '
 		self.role = 'aa'
 		self.serial = 0
@@ -144,7 +167,7 @@ class Cap(Frame):
 		self.fnl['text'] = self.filename
 		self.root.title('filmroller - ' + self.filename)
 
-	def inc_role(self):
+	def do_inc_role(self):
 		' increment to next role '
 		self.serial = 0
 		self.role = ascii_increment(self.role)
@@ -157,11 +180,11 @@ class Cap(Frame):
 		self.photo = PhotoImage(self.image)
 		self.canvas.create_image(640/2, 640/2, image=self.photo)
 
-	def quit(self, event):
-		' quit program '
+	def do_quit(self, event):
+		' exit program '
 		self.root.destroy()
 
-	def stop_video(self, *args):
+	def do_stop_video(self, *args):
 		' stop video and release device '
 		if self.video is not None:
 			self.video.stop()
@@ -170,10 +193,10 @@ class Cap(Frame):
 
 	def restart_video(self, *args):
 		' restart video (if device changes or hangs) '
-		self.stop_video()
-		self.root.after(1, self.start_video)
+		self.do_stop_video()
+		self.root.after(1, self.do_start_video)
 
-	def start_video(self, *args):
+	def do_start_video(self, *args):
 		' init video and start live view '
 		if self.video is None:
 			self.video = Video_device(self.videodevice.get())
@@ -191,13 +214,13 @@ class Cap(Frame):
 			self.video.create_buffers(30)
 			self.video.queue_all_buffers()
 			self.video.start()
-			self.root.after(1, self.live_view)
+			self.root.after(1, self.do_live_view)
 			#self.canvas.width=640
 			#self.canvas.height=480
 			#self.canvas.pack(side='top')
 			self.degree = 0
 
-	def live_view(self, delta=3.0):
+	def do_live_view(self, delta=3.0):
 		' show single pic live view and ask tk to call us again later '
 		if self.video is not None:
 			select((self.video, ), (), ())
@@ -213,11 +236,11 @@ class Cap(Frame):
 				self.image = self.image.rotate(self.degree)
 			self.photo = PhotoImage(self.image)
 			self.canvas.create_image(640/2, 640/2, image=self.photo)
-			self.root.after(3, self.live_view)
+			self.root.after(3, self.do_live_view)
 
-	def single_shot(self, *args):
+	def do_single_shot(self, *args):
 		' do a high res single shot and store it '
-		def go():
+		def _go():
 			self.video = Video_device(self.videodevice.get())
 			try:
 				self.highressize['size_x'], self.highressize['size_y'] = self.video.set_format(
@@ -243,7 +266,7 @@ class Cap(Frame):
 				if self.auto.get():
 					image = autocontrast(image)
 				if self.degree:
-					self.image = self.image.rotate(self.degree)
+					image = image.rotate(self.degree)
 				image.save(self.filename)
 				self.inc_picture()
 				self.root.bell()
@@ -251,10 +274,11 @@ class Cap(Frame):
 			finally:
 				self.video.close()
 				self.video = None
-			self.root.after(1, self.start_video)
-		self.stop_video()
+			self.root.after(1, self.do_start_video)
+		self.do_stop_video()
 		self.set_pauseimage()
-		self.root.after(1, go)
+		self.update_idletasks()
+		self.root.after(1, _go)
 
 
 def main():
