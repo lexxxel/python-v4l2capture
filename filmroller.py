@@ -51,6 +51,9 @@ class Cap(Frame):
 		self.root.bind('<Destroy>', self.do_stop_video)
 		self.root.bind('<space>', self.do_single_shot)
 		self.root.bind('<Return>', self.do_single_shot)
+		self.root.bind('<Left>', self.do_change_rotation_clockwise)
+		self.root.bind('<Right>', self.do_change_rotation_counterclockwise)
+		self.root.bind('<Up>', self.do_change_rotation_reset)
 		self.root.bind('q', self.do_quit)
 		self.root.bind('i', self.do_toggle_invert)
 		self.root.bind('a', self.do_toggle_auto)
@@ -95,25 +98,25 @@ class Cap(Frame):
 		#
 		Frame.__init__(self, self.root)
 		self.pack()
-		self.canvas = Canvas(self, width=640, height=640, )
-		self.canvas.pack(side='top')
-		self.canvas.bind('<Button-1>', self.do_change_rotation)
-		self.xt = Checkbutton(self, text='Invert', variable=self.invert)
-		self.xt.pack(side='left')
-		self.xb = Checkbutton(self, text='B/W', variable=self.bw)
-		self.xb.pack(side='left')
-		self.xa = Checkbutton(self, text='Auto', variable=self.auto)
-		self.xa.pack(side='left')
-		self.xv = OptionMenu(self, self.videodevice, *dev_names, command=self.restart_video)
-		self.xv.pack(side='left')
-		self.resetrole = Button(self, text='First role', command=self.do_first_role)
-		self.resetrole.pack(side='left')
-		self.fnl = Label(self)
-		self.fnl.pack(side='left')
-		self.nextrole = Button(self, text='Next role', command=self.do_inc_role)
-		self.nextrole.pack(side='left')
-		self.take = Button(self, text='Take!', command=self.do_single_shot)
-		self.take.pack(side='right')
+		self.x_canvas = Canvas(self, width=640, height=640, )
+		self.x_canvas.pack(side='top')
+		self.x_canvas.bind('<Button-1>', self.do_change_rotation)
+		self.x_invert = Checkbutton(self, text='Invert', variable=self.invert)
+		self.x_invert.pack(side='left')
+		self.x_bw = Checkbutton(self, text='B/W', variable=self.bw)
+		self.x_bw.pack(side='left')
+		self.x_auto = Checkbutton(self, text='Auto', variable=self.auto)
+		self.x_auto.pack(side='left')
+		self.x_restart_video = OptionMenu(self, self.videodevice, *dev_names, command=self.restart_video)
+		self.x_restart_video.pack(side='left')
+		self.x_first_role = Button(self, text='First role', command=self.do_first_role)
+		self.x_first_role.pack(side='left')
+		self.x_filename = Label(self)
+		self.x_filename.pack(side='left')
+		self.x_inc_role = Button(self, text='Next role', command=self.do_inc_role)
+		self.x_inc_role.pack(side='left')
+		self.x_single_shot = Button(self, text='Take!', command=self.do_single_shot)
+		self.x_single_shot.pack(side='right')
 		self.do_first_role()
 		self.do_start_video()
 
@@ -126,14 +129,23 @@ class Cap(Frame):
 	def do_toggle_bw(self, *args):
 		self.bw.set(not self.bw.get())
 
+	def do_change_rotation_clockwise(self, *args):
+		self.degree = -90
+
+	def do_change_rotation_counterclockwise(self, *args):
+		self.degree = 90
+
+	def do_change_rotation_reset(self, *args):
+		self.degree = 0
+
 	def do_change_rotation(self, event):
 		' determine where the image was clicked and turn that to the top '
 		if event.x < 200:
-			self.degree = -90
+			self.do_change_rotation_clockwise()
 		elif event.x > 640 - 200:
-			self.degree = 90
+			self.do_change_rotation_counterclockwise()
 		else:
-			self.degree = 0
+			self.do_change_rotation_reset()
 
 	def config_get(self, name, default):
 		' read a configuration entry, fallback to default if not already stored '
@@ -164,7 +176,7 @@ class Cap(Frame):
 			self.serial += 1
 			self.filename = '{}/scanned.{}-{:04}.jpg'.format(self.path, self.role, self.serial, )
 		self.root.title('filmroller - ' + self.filename)
-		self.fnl['text'] = self.filename
+		self.x_filename['text'] = self.filename
 		self.root.title('filmroller - ' + self.filename)
 
 	def do_inc_role(self):
@@ -178,7 +190,7 @@ class Cap(Frame):
 		self.image = fromfile('filmroller.pause.png')
 		self.image.thumbnail((self.previewsize['size_x'], self.previewsize['size_y'], ), )
 		self.photo = PhotoImage(self.image)
-		self.canvas.create_image(640/2, 640/2, image=self.photo)
+		self.x_canvas.create_image(640/2, 640/2, image=self.photo)
 
 	def do_quit(self, event):
 		' exit program '
@@ -215,9 +227,9 @@ class Cap(Frame):
 			self.video.queue_all_buffers()
 			self.video.start()
 			self.root.after(1, self.do_live_view)
-			#self.canvas.width=640
-			#self.canvas.height=480
-			#self.canvas.pack(side='top')
+			#self.x_canvas.width=640
+			#self.x_canvas.height=480
+			#self.x_canvas.pack(side='top')
 			self.degree = 0
 
 	def do_live_view(self, delta=3.0):
@@ -235,7 +247,7 @@ class Cap(Frame):
 			if self.degree:
 				self.image = self.image.rotate(self.degree)
 			self.photo = PhotoImage(self.image)
-			self.canvas.create_image(640/2, 640/2, image=self.photo)
+			self.x_canvas.create_image(640/2, 640/2, image=self.photo)
 			self.root.after(3, self.do_live_view)
 
 	def do_single_shot(self, *args):
