@@ -9,8 +9,6 @@
 // purpose, without any conditions, unless such conditions are
 // required by law.
 
-#define USE_LIBV4L
-
 #include <Python.h>
 #include <fcntl.h>
 #include <linux/videodev2.h>
@@ -31,6 +29,9 @@
 #  define Py_TYPE(ob) (((PyObject*)(ob))->ob_type)
 #endif
 
+#if PY_MAJOR_VERSION < 3
+#  define PyLong_FromLong PyInt_FromLong
+#endif
 
 #define ASSERT_OPEN if(self->fd < 0) { \
     PyErr_SetString(PyExc_ValueError, \
@@ -80,19 +81,15 @@ static int my_ioctl(
   int request,
   void *arg) {
   // Retry ioctl until it returns without being interrupted.
-
-  for (;;) {
-    int result = v4l2_ioctl(fd, request, arg);
-
-    if (!result) {
-      return 0;
-    }
-
-    if (errno != EINTR) {
+  int result = -1;
+  while (result < 0) {
+    result = v4l2_ioctl(fd, request, arg);
+    if (result < 0 && errno != EINTR) {
       PyErr_SetFromErrno(PyExc_IOError);
       return 1;
     }
   }
+  return 0;
 }
 
 static void Video_device_unmap(
@@ -156,11 +153,7 @@ static PyObject *Video_device_close(
 static PyObject *Video_device_fileno(
   Video_device * self) {
   ASSERT_OPEN;
-#if PY_MAJOR_VERSION < 3
-  return PyInt_FromLong(self->fd);
-#else
   return PyLong_FromLong(self->fd);
-#endif
 }
 
 static PyObject *Video_device_get_info(
@@ -479,6 +472,142 @@ static PyObject *Video_device_get_exposure_auto(
 #endif
 }
 
+static PyObject *Video_device_get_framesizes(
+  Video_device * self,
+  PyObject * args) {
+  struct v4l2_frmsizeenum frmsize;
+  CLEAR(frmsize);
+  char *fourcc_str;
+  int size;
+  if (!PyArg_ParseTuple(args, "s#", &fourcc_str, &size)) {
+    return NULL;
+  }
+  if (size != 4) {
+    return NULL;
+  }
+  frmsize.pixel_format = v4l2_fourcc(fourcc_str[0],
+                                     fourcc_str[1],
+                                     fourcc_str[2], fourcc_str[3]);
+  frmsize.index = 0;
+  PyObject *ret = PyList_New(0);
+  while (!my_ioctl(self->fd, VIDIOC_ENUM_FRAMESIZES, &frmsize)) {
+    PyObject *cap = PyDict_New();
+    switch (frmsize.type) {
+    case V4L2_FRMSIZE_TYPE_DISCRETE:
+    {
+      PyDict_SetItemString(cap, "size_x",
+                           PyLong_FromLong(frmsize.discrete.width));
+      PyDict_SetItemString(cap, "size_y",
+                           PyLong_FromLong(frmsize.discrete.height));
+    }
+      break;
+    case V4L2_FRMSIZE_TYPE_STEPWISE:
+    {
+      PyDict_SetItemString(cap, "min_width",
+                           PyLong_FromLong(frmsize.stepwise.min_width));
+      PyDict_SetItemString(cap, "min_height",
+                           PyLong_FromLong(frmsize.stepwise.min_height));
+      PyDict_SetItemString(cap, "max_width",
+                           PyLong_FromLong(frmsize.stepwise.max_width));
+      PyDict_SetItemString(cap, "max_height",
+                           PyLong_FromLong(frmsize.stepwise.max_height));
+      PyDict_SetItemString(cap, "step_width",
+                           PyLong_FromLong(frmsize.stepwise.step_width));
+      PyDict_SetItemString(cap, "step_height",
+                           PyLong_FromLong(frmsize.stepwise.step_height));
+    }
+      break;
+    }
+    PyList_Append(ret, cap);
+    frmsize.index++;
+  }
+  PyErr_Clear();
+  return ret;
+}
+
+static double fract2sec(
+  const struct v4l2_fract *f) {
+  return (double) f->numerator / f->denominator;
+}
+
+static double fract2fps(
+  const struct v4l2_fract *f) {
+  return (double) f->denominator / f->numerator;
+}
+
+static PyObject *Video_device_get_frameintervals(
+  Video_device * self,
+  PyObject * args) {
+  struct v4l2_frmivalenum frmival;
+  CLEAR(frmival);
+  char *fourcc_str;
+  int size;
+  if (!PyArg_ParseTuple
+      (args, "s#ii", &fourcc_str, &size, &frmival.width, &frmival.height)) {
+    return NULL;
+  }
+  if (size != 4) {
+    return NULL;
+  }
+  frmival.pixel_format = v4l2_fourcc(fourcc_str[0],
+                                     fourcc_str[1],
+                                     fourcc_str[2], fourcc_str[3]);
+  frmival.index = 0;
+  PyObject *ret = PyList_New(0);
+  while (!my_ioctl(self->fd, VIDIOC_ENUM_FRAMEINTERVALS, &frmival)) {
+    PyObject *cap = PyDict_New();
+    switch (frmival.type) {
+    case V4L2_FRMIVAL_TYPE_DISCRETE:
+    {
+      PyDict_SetItemString(cap, "interval",
+                           PyFloat_FromDouble(fract2sec(&frmival.discrete)));
+      PyDict_SetItemString(cap, "fps",
+                           PyFloat_FromDouble(fract2fps(&frmival.discrete)));
+    }
+      break;
+    case V4L2_FRMIVAL_TYPE_CONTINUOUS:
+    {
+      PyDict_SetItemString(cap, "interval_min",
+                           PyFloat_FromDouble(fract2sec
+                                              (&frmival.stepwise.min)));
+      PyDict_SetItemString(cap, "interval_max",
+                           PyFloat_FromDouble(fract2sec
+                                              (&frmival.stepwise.max)));
+      PyDict_SetItemString(cap, "fps_max",
+                           PyFloat_FromDouble(fract2fps
+                                              (&frmival.stepwise.max)));
+      PyDict_SetItemString(cap, "fps_min",
+                           PyFloat_FromDouble(fract2fps
+                                              (&frmival.stepwise.min)));
+    }
+      break;
+    case V4L2_FRMIVAL_TYPE_STEPWISE:
+    {
+      PyDict_SetItemString(cap, "interval_min",
+                           PyFloat_FromDouble(fract2sec
+                                              (&frmival.stepwise.min)));
+      PyDict_SetItemString(cap, "interval_max",
+                           PyFloat_FromDouble(fract2sec
+                                              (&frmival.stepwise.max)));
+      PyDict_SetItemString(cap, "interval_step",
+                           PyFloat_FromDouble(fract2sec
+                                              (&frmival.stepwise.step)));
+      PyDict_SetItemString(cap, "fps_max",
+                           PyFloat_FromDouble(fract2fps
+                                              (&frmival.stepwise.max)));
+      PyDict_SetItemString(cap, "fps_min",
+                           PyFloat_FromDouble(fract2fps
+                                              (&frmival.stepwise.min)));
+    }
+      break;
+    }
+    PyList_Append(ret, cap);
+    frmival.index++;
+  }
+  PyErr_Clear();
+  return ret;
+}
+
 static PyObject *Video_device_set_focus_auto(
   Video_device * self,
   PyObject * args) {
@@ -793,6 +922,13 @@ static PyMethodDef Video_device_methods[] = {
   {"get_focus_auto", (PyCFunction) Video_device_get_focus_auto, METH_NOARGS,
    "get_focus_auto() -> autofocus \n\n"
    "Request the video device to get auto focus value. "},
+  {"get_framesizes", (PyCFunction) Video_device_get_framesizes, METH_VARARGS,
+   "get_framesizes() -> framesizes \n\n"
+   "Request the framesizes suported by the device. "},
+  {"get_frameintervals", (PyCFunction) Video_device_get_frameintervals,
+   METH_VARARGS,
+   "get_frameintervals() -> frameintervals \n\n"
+   "Request the frameintervals suported by the device. "},
   {"start", (PyCFunction) Video_device_start, METH_NOARGS,
    "start()\n\n" "Start video capture."},
   {"stop", (PyCFunction) Video_device_stop, METH_NOARGS,
