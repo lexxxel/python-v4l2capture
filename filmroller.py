@@ -32,7 +32,6 @@ TODO:
 - get event from usb dev
 - reduce redundant code
 - different target dir
-- support rotation (incl preview)
 - show countdown during take
 '''
 
@@ -97,7 +96,7 @@ class Cap(Frame):
 		self.degree = 0
 		#
 		Frame.__init__(self, self.root)
-		self.pack()
+		self.grid()
 		self.x_canvas = Canvas(self, width=640, height=640, )
 		self.x_canvas.pack(side='top')
 		self.x_canvas.bind('<Button-1>', self.do_change_rotation)
@@ -163,7 +162,7 @@ class Cap(Frame):
 			self.config.set('global', name, str(value))
 			self.config.write(open('filmroller.conf', 'w'))
 
-	def do_first_role(self):
+	def do_first_role(self, *args):
 		' jump back to first role '
 		self.role = 'aa'
 		self.serial = 0
@@ -179,7 +178,7 @@ class Cap(Frame):
 		self.x_filename['text'] = self.filename
 		self.root.title('filmroller - ' + self.filename)
 
-	def do_inc_role(self):
+	def do_inc_role(self, *args):
 		' increment to next role '
 		self.serial = 0
 		self.role = ascii_increment(self.role)
@@ -192,7 +191,7 @@ class Cap(Frame):
 		self.photo = PhotoImage(self.image)
 		self.x_canvas.create_image(640/2, 640/2, image=self.photo)
 
-	def do_quit(self, event):
+	def do_quit(self, *args):
 		' exit program '
 		self.root.destroy()
 
@@ -232,7 +231,7 @@ class Cap(Frame):
 			#self.x_canvas.pack(side='top')
 			self.degree = 0
 
-	def do_live_view(self, delta=3.0):
+	def do_live_view(self, *args):
 		' show single pic live view and ask tk to call us again later '
 		if self.video is not None:
 			select((self.video, ), (), ())
@@ -266,10 +265,12 @@ class Cap(Frame):
 				self.video.create_buffers(7)
 				self.video.queue_all_buffers()
 				self.video.start()
-				for n in range(7): # wait for auto
+				stop_time = time() + 3.0
+				# wait for auto
+				while stop_time >= time():
 					select((self.video, ), (), ())
-					data = self.video.read_and_queue()
 					self.update_idletasks()
+					data = self.video.read_and_queue()
 				image = frombytes('RGB', (self.highressize['size_x'], self.highressize['size_y'], ), data)
 				if self.invert.get():
 					image = invert(image)
