@@ -26,7 +26,6 @@ resolution.
 it needs tkinter, pil image, imageops and imagetk and famous v4l2capture.
 
 TODO:
-- get v4l properties (sizes & fps: http://git.linuxtv.org/cgit.cgi/v4l-utils.git/tree/utils/v4l2-ctl/v4l2-ctl-vidcap.cpp)
 - remove hardcoded stuff
 - set v4l properties (contrast, hue, sat, ..)
 - get event from usb dev
@@ -50,6 +49,7 @@ class Cap(Frame):
 		self.root.bind("<Return>", self.single_shot)
 		self.root.bind("q", self.quit)
 		# config:
+		self.video = None
 		self.invert = IntVar()
 		self.invert.set(1)
 		self.bw = IntVar()
@@ -81,7 +81,6 @@ class Cap(Frame):
 		self.take = Button(self, text='Take!', command=self.single_shot)
 		self.take.pack(side='right')
 		self.first_role()
-		self.video = None
 		self.start_video()
 
 	def first_role(self):
@@ -108,8 +107,9 @@ class Cap(Frame):
 	def set_pauseimage(self):
 		' show pause image (during shot) '
 		self.image = fromfile('filmroller.pause.png')
+		self.image.thumbnail((self.previewsize['size_x'], self.previewsize['size_y'], ), )
 		self.photo = PhotoImage(self.image)
-		self.canvas.create_image(320, 240, image=self.photo)
+		self.canvas.create_image(self.previewsize['size_x']/2, self.previewsize['size_y']/2, image=self.photo)
 
 	def quit(self, event):
 		' quit program '
@@ -130,7 +130,11 @@ class Cap(Frame):
 		' init video and start live view '
 		if self.video is None:
 			self.video = Video_device(self.videodevice.get())
-			self.video.set_format(640, 480)
+			_, _, self.fourcc = self.video.get_format()
+			caps = sorted(self.video.get_framesizes(self.fourcc), cmp=lambda a, b: cmp(a['size_x']*a['size_y'], b['size_x']*b['size_y']))
+			self.previewsize, self.highressize = caps[0], caps[-1]
+			self.previewsize['size_x'], self.previewsize['size_y'] = self.video.set_format(
+				self.previewsize['size_x'], self.previewsize['size_y'], 0, 'MJPEG')
 			try: self.video.set_auto_white_balance(True)
 			except: pass
 			try: self.video.set_exposure_auto(True)
@@ -140,7 +144,6 @@ class Cap(Frame):
 			self.video.create_buffers(30)
 			self.video.queue_all_buffers()
 			self.video.start()
-			#width, height, mode = self.video.get_format() # YCbCr
 			self.root.after(1, self.live_view)
 
 	def live_view(self, delta=3.0):
@@ -148,7 +151,7 @@ class Cap(Frame):
 		if self.video is not None:
 			select((self.video,), (), ())
 			data = self.video.read_and_queue()
-			self.image = frombytes('RGB', (640, 480), data)
+			self.image = frombytes('RGB', (self.previewsize['size_x'], self.previewsize['size_y']), data)
 			if self.invert.get():
 				self.image = invert(self.image)
 			if self.bw.get():
@@ -156,7 +159,7 @@ class Cap(Frame):
 			if self.ac.get():
 				self.image = autocontrast(self.image)
 			self.photo = PhotoImage(self.image)
-			self.canvas.create_image(320, 240, image=self.photo)
+			self.canvas.create_image(self.previewsize['size_x']/2, self.previewsize['size_y']/2, image=self.photo)
 			self.root.after(1, self.live_view)
 
 	def single_shot(self, *args):
@@ -164,7 +167,8 @@ class Cap(Frame):
 		def go():
 			self.video = Video_device(self.videodevice.get())
 			try:
-				width, height = self.video.set_format(2592, 1944)
+				self.highressize['size_x'], self.highressize['size_y'] = self.video.set_format(
+					self.highressize['size_x'], self.highressize['size_y'], 0, 'MJPEG')
 				try: self.video.set_auto_white_balance(True)
 				except: pass
 				try: self.video.set_exposure_auto(True)
@@ -177,7 +181,7 @@ class Cap(Frame):
 				for n in range(7): # wait for auto
 					select((self.video, ), (), ())
 					data = self.video.read_and_queue()
-				image = frombytes('RGB', (width, height), data)
+				image = frombytes('RGB', (self.highressize['size_x'], self.highressize['size_y'], ), data)
 				if self.invert.get():
 					image = invert(image)
 				if self.bw.get():
