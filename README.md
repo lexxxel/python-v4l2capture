@@ -41,10 +41,20 @@ To build and install:
 
 	./setup.py install
 
-Example
-=======
+Examples
+========
 
-See capture_picture.py, capture_picture_delayed.py and list_devices.py.
+The script list\_devices.py lists all video4linux devices and it's capabilities
+(as seen by python-v4l2capture).
+
+The script capture\_picture.py shows a simple one-shot immediate capture of a
+picture. The image is stored to a file "image.jpg".
+
+The script capture\_picture\_delayed.py wait some seconds to allow the
+auto-exposure to take place. The image is stored to a file "image.jpg".
+
+The script capture\_video.py takes a video and stores it to a file
+"video.mjpg". It stopps after 10 sec of recording automatically.
 
 The program filmroller.py provided a gui to take captures from a webcam. It
 switches resolution between lowest resolution (for a live view) and highest
