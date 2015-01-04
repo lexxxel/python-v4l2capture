@@ -6,8 +6,8 @@ from os import listdir, makedirs
 from ConfigParser import RawConfigParser
 from Image import frombytes, open as fromfile
 from ImageTk import PhotoImage
-from ImageOps import invert, autocontrast, grayscale
-from Tkinter import Frame, Button, Tk, Label, Canvas, BOTH, TOP, Checkbutton, OptionMenu, StringVar, BooleanVar, Menu
+from ImageOps import invert, autocontrast, grayscale, equalize, solarize
+from Tkinter import Frame, Button, Tk, Label, Canvas, BOTH, TOP, Checkbutton, OptionMenu, StringVar, BooleanVar, Menu, IntVar
 from v4l2capture import Video_device
 
 '''
@@ -47,17 +47,19 @@ class Cap(Frame):
 		' set defaults, create widgets, bind callbacks, start live view '
 		# go!
 		self.root = Tk()
+		self.root.bind('q', lambda e: self.root.quit())
+		self.root.bind('x', lambda e: self.root.quit())
 		self.root.bind('<Destroy>', self.do_stop_video)
 		self.root.bind('<space>', self.do_single_shot)
 		self.root.bind('<Return>', self.do_single_shot)
-		self.root.bind('<Left>', self.do_change_rotation_clockwise)
-		self.root.bind('<Right>', self.do_change_rotation_counterclockwise)
-		self.root.bind('<Up>', self.do_change_rotation_reset)
-		self.root.bind('q', self.do_quit)
-		self.root.bind('i', self.do_toggle_invert)
-		self.root.bind('a', self.do_toggle_auto)
-		self.root.bind('b', self.do_toggle_bw)
-		self.root.bind('x', self.do_quit)
+		self.root.bind('<Left>', lambda e: self.degree.set(-90))
+		self.root.bind('<Right>', lambda e: self.degree.set(90))
+		self.root.bind('<Up>', lambda e: self.degree.set(0))
+		self.root.bind('i', lambda e: self.invert.set(not self.invert.get()))
+		self.root.bind('a', lambda e: self.autocontrast.set(not self.autocontrast.get()))
+		self.root.bind('b', lambda e: self.grayscale.set(not self.grayscale.get()))
+		self.root.bind('e', lambda e: self.equalize.set(not self.equalize.get()))
+		self.root.bind('s', lambda e: self.solarize.set(not self.solarize.get()))
 		self.root.bind('<Button-3>', self.do_single_shot)
 		# config:
 		self.config = RawConfigParser()
@@ -68,13 +70,21 @@ class Cap(Frame):
 		self.invert = BooleanVar(name='invert')
 		self.invert.set(self.config_get('invert', True))
 		self.invert.trace('w', self.do_configure)
-		self.bw = BooleanVar(name='bw')
-		self.bw.set(self.config_get('bw', False))
-		self.bw.trace('w', self.do_configure)
-		self.auto = BooleanVar(name='auto')
-		self.auto.set(self.config_get('auto', True))
-		self.auto.trace('w', self.do_configure)
+		self.grayscale = BooleanVar(name='grayscale')
+		self.grayscale.set(self.config_get('grayscale', False))
+		self.grayscale.trace('w', self.do_configure)
+		self.autocontrast = BooleanVar(name='autocontrast')
+		self.autocontrast.set(self.config_get('autocontrast', True))
+		self.autocontrast.trace('w', self.do_configure)
+		self.equalize = BooleanVar(name='equalize')
+		self.equalize.set(self.config_get('equalize', False))
+		self.equalize.trace('w', self.do_configure)
+		self.solarize = BooleanVar(name='solarize')
+		self.solarize.set(self.config_get('solarize', False))
+		self.solarize.trace('w', self.do_configure)
 		self.videodevice = StringVar(name='videodevice')
+		self.degree = IntVar(name='degree')
+		self.degree.set(0)
 		dev_names = sorted(['/dev/{}'.format(x) for x in listdir('/dev') if x.startswith('video')])
 		d = self.config_get('videodevice', dev_names[-1])
 		if not d in dev_names:
@@ -93,7 +103,6 @@ class Cap(Frame):
 		self.path = 'filmroller'
 		if not exists(self.path):
 			makedirs(self.path)
-		self.degree = 0
 		#
 		Frame.__init__(self, self.root)
 		self.grid()
@@ -102,10 +111,10 @@ class Cap(Frame):
 		self.x_canvas.bind('<Button-1>', self.do_change_rotation)
 		self.x_invert = Checkbutton(self, text='Invert', variable=self.invert)
 		self.x_invert.pack(side='left')
-		self.x_bw = Checkbutton(self, text='B/W', variable=self.bw)
-		self.x_bw.pack(side='left')
-		self.x_auto = Checkbutton(self, text='Auto', variable=self.auto)
-		self.x_auto.pack(side='left')
+		self.x_grayscale = Checkbutton(self, text='B/W', variable=self.grayscale)
+		self.x_grayscale.pack(side='left')
+		self.x_autocontrast = Checkbutton(self, text='Auto', variable=self.autocontrast)
+		self.x_autocontrast.pack(side='left')
 		self.x_restart_video = OptionMenu(self, self.videodevice, *dev_names, command=self.restart_video)
 		self.x_restart_video.pack(side='left')
 		self.x_first_role = Button(self, text='First role', command=self.do_first_role)
@@ -119,32 +128,14 @@ class Cap(Frame):
 		self.do_first_role()
 		self.do_start_video()
 
-	def do_toggle_invert(self, *args):
-		self.invert.set(not self.invert.get())
-
-	def do_toggle_auto(self, *args):
-		self.auto.set(not self.auto.get())
-
-	def do_toggle_bw(self, *args):
-		self.bw.set(not self.bw.get())
-
-	def do_change_rotation_clockwise(self, *args):
-		self.degree = -90
-
-	def do_change_rotation_counterclockwise(self, *args):
-		self.degree = 90
-
-	def do_change_rotation_reset(self, *args):
-		self.degree = 0
-
 	def do_change_rotation(self, event):
 		' determine where the image was clicked and turn that to the top '
 		if event.x < 200:
-			self.do_change_rotation_clockwise()
+			self.degree.set(-90)
 		elif event.x > 640 - 200:
-			self.do_change_rotation_counterclockwise()
+			self.degree.set(90)
 		else:
-			self.do_change_rotation_reset()
+			self.degree.set(0)
 
 	def config_get(self, name, default):
 		' read a configuration entry, fallback to default if not already stored '
@@ -191,10 +182,6 @@ class Cap(Frame):
 		self.photo = PhotoImage(self.image)
 		self.x_canvas.create_image(640/2, 640/2, image=self.photo)
 
-	def do_quit(self, *args):
-		' exit program '
-		self.root.destroy()
-
 	def do_stop_video(self, *args):
 		' stop video and release device '
 		if self.video is not None:
@@ -226,10 +213,9 @@ class Cap(Frame):
 			self.video.queue_all_buffers()
 			self.video.start()
 			self.root.after(1, self.do_live_view)
-			#self.x_canvas.width=640
-			#self.x_canvas.height=480
+			#self.x_canvas.config(width=640, height=480)
 			#self.x_canvas.pack(side='top')
-			self.degree = 0
+			self.degree.set(0)
 
 	def do_live_view(self, *args):
 		' show single pic live view and ask tk to call us again later '
@@ -239,12 +225,16 @@ class Cap(Frame):
 			self.image = frombytes('RGB', (self.previewsize['size_x'], self.previewsize['size_y']), data)
 			if self.invert.get():
 				self.image = invert(self.image)
-			if self.bw.get():
+			if self.grayscale.get():
 				self.image = grayscale(self.image)
-			if self.auto.get():
+			if self.autocontrast.get():
 				self.image = autocontrast(self.image)
-			if self.degree:
-				self.image = self.image.rotate(self.degree)
+			if self.equalize.get():
+				self.image = equalize(self.image)
+			if self.solarize.get():
+				self.image = solarize(self.image)
+			if self.degree.get():
+				self.image = self.image.rotate(self.degree.get())
 			self.photo = PhotoImage(self.image)
 			self.x_canvas.create_image(640/2, 640/2, image=self.photo)
 			self.root.after(3, self.do_live_view)
@@ -274,12 +264,16 @@ class Cap(Frame):
 				image = frombytes('RGB', (self.highressize['size_x'], self.highressize['size_y'], ), data)
 				if self.invert.get():
 					image = invert(image)
-				if self.bw.get():
+				if self.grayscale.get():
 					image = grayscale(image)
-				if self.auto.get():
+				if self.autocontrast.get():
 					image = autocontrast(image)
-				if self.degree:
-					image = image.rotate(self.degree)
+				if self.equalize.get():
+					self.image = equalize(self.image)
+				if self.solarize.get():
+					self.image = solarize(self.image)
+				if self.degree.get():
+					image = image.rotate(self.degree.get())
 				image.save(self.filename)
 				self.inc_picture()
 				self.root.bell()
@@ -298,6 +292,7 @@ def main():
 	' main start point of the program '
 	app = Cap()
 	app.mainloop()
+	app.root.destroy()
 
 if __name__ == '__main__':
 	from sys import argv
