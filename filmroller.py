@@ -45,22 +45,25 @@ def ascii_increment(val):
 class Cap(Frame):
 	def __init__(self):
 		' set defaults, create widgets, bind callbacks, start live view '
-		# go!
 		self.root = Tk()
+		# menu:
+		self.menu = Menu(self.root)
+		self.root.config(menu=self.menu)
+		# bind global keypresses:
 		self.root.bind('q', lambda e: self.root.quit())
 		self.root.bind('x', lambda e: self.root.quit())
 		self.root.bind('<Destroy>', self.do_stop_video)
 		self.root.bind('<space>', self.do_single_shot)
 		self.root.bind('<Return>', self.do_single_shot)
+		self.root.bind('<Button-3>', self.do_single_shot)
 		self.root.bind('<Left>', lambda e: self.degree.set(-90))
 		self.root.bind('<Right>', lambda e: self.degree.set(90))
 		self.root.bind('<Up>', lambda e: self.degree.set(0))
-		self.root.bind('i', lambda e: self.invert.set(not self.invert.get()))
 		self.root.bind('a', lambda e: self.autocontrast.set(not self.autocontrast.get()))
-		self.root.bind('b', lambda e: self.grayscale.set(not self.grayscale.get()))
 		self.root.bind('e', lambda e: self.equalize.set(not self.equalize.get()))
+		self.root.bind('g', lambda e: self.grayscale.set(not self.grayscale.get()))
+		self.root.bind('i', lambda e: self.invert.set(not self.invert.get()))
 		self.root.bind('s', lambda e: self.solarize.set(not self.solarize.get()))
-		self.root.bind('<Button-3>', self.do_single_shot)
 		# config:
 		self.config = RawConfigParser()
 		self.config.read('filmroller.conf')
@@ -82,9 +85,10 @@ class Cap(Frame):
 		self.solarize = BooleanVar(name='solarize')
 		self.solarize.set(self.config_get('solarize', False))
 		self.solarize.trace('w', self.do_configure)
-		self.videodevice = StringVar(name='videodevice')
 		self.degree = IntVar(name='degree')
 		self.degree.set(0)
+		self.filename = StringVar(name='filename')
+		self.videodevice = StringVar(name='videodevice')
 		dev_names = sorted(['/dev/{}'.format(x) for x in listdir('/dev') if x.startswith('video')])
 		d = self.config_get('videodevice', dev_names[-1])
 		if not d in dev_names:
@@ -92,39 +96,29 @@ class Cap(Frame):
 		self.videodevice.set(d)
 		self.videodevice.trace('w', self.do_configure)
 		#
-		self.menu = Menu(self.root)
-		self.root.config(menu=self.menu)
-		filemenu = Menu(self.menu)
-		self.menu.add_cascade(label=self.videodevice.get(), menu=filemenu, )
-		for n in dev_names:
-			filemenu.add_command(label=n, )
-		#filemenu.add_separator()
-		#
 		self.path = 'filmroller'
 		if not exists(self.path):
 			makedirs(self.path)
-		#
+		# create gui:
 		Frame.__init__(self, self.root)
 		self.grid()
 		self.x_canvas = Canvas(self, width=640, height=640, )
 		self.x_canvas.pack(side='top')
 		self.x_canvas.bind('<Button-1>', self.do_change_rotation)
-		self.x_invert = Checkbutton(self, text='Invert', variable=self.invert)
-		self.x_invert.pack(side='left')
-		self.x_grayscale = Checkbutton(self, text='B/W', variable=self.grayscale)
-		self.x_grayscale.pack(side='left')
-		self.x_autocontrast = Checkbutton(self, text='Auto', variable=self.autocontrast)
-		self.x_autocontrast.pack(side='left')
-		self.x_restart_video = OptionMenu(self, self.videodevice, *dev_names, command=self.restart_video)
-		self.x_restart_video.pack(side='left')
-		self.x_first_role = Button(self, text='First role', command=self.do_first_role)
-		self.x_first_role.pack(side='left')
-		self.x_filename = Label(self)
-		self.x_filename.pack(side='left')
-		self.x_inc_role = Button(self, text='Next role', command=self.do_inc_role)
-		self.x_inc_role.pack(side='left')
-		self.x_single_shot = Button(self, text='Take!', command=self.do_single_shot)
-		self.x_single_shot.pack(side='right')
+		Checkbutton(self, text='Invert', variable=self.invert).pack(side='left')
+		Checkbutton(self, text='Gray', variable=self.grayscale).pack(side='left')
+		Checkbutton(self, text='Auto', variable=self.autocontrast).pack(side='left')
+		OptionMenu(self, self.videodevice, *dev_names, command=self.restart_video).pack(side='left')
+		Button(self, text='First role', command=self.do_first_role).pack(side='left')
+		Label(self, textvariable=self.filename).pack(side='left')
+		Button(self, text='Next role', command=self.do_inc_role).pack(side='left')
+		Button(self, text='Take!', command=self.do_single_shot).pack(side='right')
+		#filemenu = Menu(self.menu)
+		#self.menu.add_cascade(label=self.videodevice.get(), menu=filemenu, )
+		#for n in dev_names:
+		#	filemenu.add_command(label=n, )
+		#filemenu.add_separator()
+		# start operation:
 		self.do_first_role()
 		self.do_start_video()
 
@@ -161,13 +155,11 @@ class Cap(Frame):
 
 	def inc_picture(self):
 		' increment the picture number, jump over existing files '
-		self.filename = '{}/scanned.{}-{:04}.jpg'.format(self.path, self.role, self.serial, )
-		while exists(self.filename):
+		self.filename.set('{}/scanned.{}-{:04}.jpg'.format(self.path, self.role, self.serial, ))
+		while exists(self.filename.get()):
 			self.serial += 1
-			self.filename = '{}/scanned.{}-{:04}.jpg'.format(self.path, self.role, self.serial, )
-		self.root.title('filmroller - ' + self.filename)
-		self.x_filename['text'] = self.filename
-		self.root.title('filmroller - ' + self.filename)
+			self.filename.set('{}/scanned.{}-{:04}.jpg'.format(self.path, self.role, self.serial, ))
+		self.root.title('filmroller - ' + self.filename.get())
 
 	def do_inc_role(self, *args):
 		' increment to next role '
@@ -274,7 +266,7 @@ class Cap(Frame):
 					self.image = solarize(self.image)
 				if self.degree.get():
 					image = image.rotate(self.degree.get())
-				image.save(self.filename)
+				image.save(self.filename.get())
 				self.inc_picture()
 				self.root.bell()
 				self.video.stop()
