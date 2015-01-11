@@ -47,7 +47,8 @@ struct buffer {
 };
 
 typedef struct {
-  PyObject_HEAD int fd;
+  PyObject_HEAD
+  int fd;
   struct buffer *buffers;
   int buffer_count;
 } Video_device;
