@@ -645,6 +645,43 @@ static PyObject *Video_device_get_focus_auto(
 #endif
 }
 
+static PyObject *Video_device_set_focus_absolute(
+        Video_device * self,
+        PyObject * args) {
+#ifdef V4L2_CID_FOCUS_ABSOLUTE
+  int focus_absolute;
+  if (!PyArg_ParseTuple(args, "i", &focus_absolute)) {
+    return NULL;
+  }
+
+  struct v4l2_control ctrl;
+  CLEAR(ctrl);
+  ctrl.id = V4L2_CID_FOCUS_ABSOLUTE;
+  ctrl.value = focus_absolute;
+  if (my_ioctl(self->fd, VIDIOC_S_CTRL, &ctrl)) {
+    return NULL;
+  }
+  return Py_BuildValue("i", ctrl.value);
+#else
+  return NULL;
+#endif
+}
+
+static PyObject *Video_device_get_focus_absolute(
+        Video_device * self) {
+#ifdef V4L2_CID_FOCUS_ABSOLUTE
+  struct v4l2_control ctrl;
+  CLEAR(ctrl);
+  ctrl.id = V4L2_CID_FOCUS_ABSOLUTE;
+  if (my_ioctl(self->fd, VIDIOC_G_CTRL, &ctrl)) {
+    return NULL;
+  }
+  return Py_BuildValue("i", ctrl.value);
+#else
+  return NULL;
+#endif
+}
+
 static PyObject *Video_device_start(
   Video_device * self) {
   ASSERT_OPEN;
@@ -922,6 +959,13 @@ static PyMethodDef Video_device_methods[] = {
   {"get_focus_auto", (PyCFunction) Video_device_get_focus_auto, METH_NOARGS,
    "get_focus_auto() -> autofocus \n\n"
    "Request the video device to get auto focus value. "},
+  {"set_focus_absolute", (PyCFunction) Video_device_set_focus_absolute, METH_VARARGS,
+   "set_focus_absolute(focus_absolute) -> focus_absolute \n\n"
+   "Request the video device to set the focus to the given value. The device may "
+   "choose another value than requested and will return its choice. "},
+  {"get_focus_absolute", (PyCFunction) Video_device_get_focus_absolute, METH_NOARGS,
+   "get_focus_absolute() -> focus_absolute \n\n"
+   "Request the video device to get the focus value. "},
   {"get_framesizes", (PyCFunction) Video_device_get_framesizes, METH_VARARGS,
    "get_framesizes() -> framesizes \n\n"
    "Request the framesizes suported by the device. "},
