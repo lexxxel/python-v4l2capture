@@ -682,6 +682,43 @@ static PyObject *Video_device_get_focus_absolute(
 #endif
 }
 
+static PyObject *Video_device_set_sharpness(
+		Video_device * self,
+		PyObject * args) {
+#ifdef V4L2_CID_SHARPNESS
+	int sharpness;
+  if (!PyArg_ParseTuple(args, "i", &sharpness)) {
+    return NULL;
+  }
+
+  struct v4l2_control ctrl;
+  CLEAR(ctrl);
+  ctrl.id = V4L2_CID_SHARPNESS;
+  ctrl.value = sharpness;
+  if (my_ioctl(self->fd, VIDIOC_S_CTRL, &ctrl)) {
+    return NULL;
+  }
+  return Py_BuildValue("i", ctrl.value);
+#else
+	return NULL;
+#endif
+}
+
+static PyObject *Video_device_get_sharpness(
+		Video_device * self) {
+#ifdef V4L2_CID_SHARPNESS
+	struct v4l2_control ctrl;
+  CLEAR(ctrl);
+  ctrl.id = V4L2_CID_SHARPNESS;
+  if (my_ioctl(self->fd, VIDIOC_G_CTRL, &ctrl)) {
+    return NULL;
+  }
+  return Py_BuildValue("i", ctrl.value);
+#else
+	return NULL;
+#endif
+}
+
 static PyObject *Video_device_start(
   Video_device * self) {
   ASSERT_OPEN;
@@ -966,6 +1003,13 @@ static PyMethodDef Video_device_methods[] = {
   {"get_focus_absolute", (PyCFunction) Video_device_get_focus_absolute, METH_NOARGS,
    "get_focus_absolute() -> focus_absolute \n\n"
    "Request the video device to get the focus value. "},
+  {"set_sharpness", (PyCFunction) Video_device_set_focus_absolute, METH_VARARGS,
+   "set_sharpness(sharpness) -> sharpness \n\n"
+   "Request the video device to set the sharpness to the given value. The device may "
+   "choose another value than requested and will return its choice. "},
+  {"get_sharpness", (PyCFunction) Video_device_get_sharpness, METH_NOARGS,
+   "get_sharpness() -> sharpness \n\n"
+   "Request the video device to get the sharpness value."},
   {"get_framesizes", (PyCFunction) Video_device_get_framesizes, METH_VARARGS,
    "get_framesizes() -> framesizes \n\n"
    "Request the framesizes suported by the device. "},
