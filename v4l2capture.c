@@ -14,16 +14,16 @@
 #include <linux/videodev2.h>
 #include <sys/mman.h>
 
-#ifdef USE_LIBV4L
-#  include <libv4l2.h>
-#else
-#  include <sys/ioctl.h>
-#  define v4l2_close close
-#  define v4l2_ioctl ioctl
-#  define v4l2_mmap mmap
-#  define v4l2_munmap munmap
-#  define v4l2_open open
-#endif
+//#ifdef USE_LIBV4L
+#include <libv4l2.h>
+//#else
+//#  include <sys/ioctl.h>
+//#  define v4l2_close close
+//#  define v4l2_ioctl ioctl
+//#  define v4l2_mmap mmap
+//#  define v4l2_munmap munmap
+//#  define v4l2_open open
+//#endif
 
 #ifndef Py_TYPE
 #  define Py_TYPE(ob) (((PyObject*)(ob))->ob_type)
@@ -395,6 +395,80 @@ static PyObject *Video_device_get_white_balance_temperature(
   return Py_BuildValue("i", ctrl.value);
 #else
   return NULL;
+#endif
+}
+
+static PyObject *Video_device_set_gain(
+		Video_device * self,
+		PyObject * args) {
+#ifdef V4L2_CID_GAIN
+	int exposure;
+  if (!PyArg_ParseTuple(args, "i", &exposure)) {
+    return NULL;
+  }
+
+  struct v4l2_control ctrl;
+  CLEAR(ctrl);
+  ctrl.id = V4L2_CID_GAIN;
+  ctrl.value = exposure;
+  if (my_ioctl(self->fd, VIDIOC_S_CTRL, &ctrl)) {
+    return NULL;
+  }
+  return Py_BuildValue("i", ctrl.value);
+#else
+	return NULL;
+#endif
+}
+
+static PyObject *Video_device_get_gain(
+		Video_device * self) {
+#ifdef V4L2_CID_GAIN
+	struct v4l2_control ctrl;
+  CLEAR(ctrl);
+  ctrl.id = V4L2_CID_GAIN;
+  if (my_ioctl(self->fd, VIDIOC_G_CTRL, &ctrl)) {
+    return NULL;
+  }
+  return Py_BuildValue("i", ctrl.value);
+#else
+	return NULL;
+#endif
+}
+
+static PyObject *Video_device_set_autogain(
+		Video_device * self,
+		PyObject * args) {
+#ifdef V4L2_CID_AUTOGAIN
+	int exposure;
+  if (!PyArg_ParseTuple(args, "b", &exposure)) {
+    return NULL;
+  }
+
+  struct v4l2_control ctrl;
+  CLEAR(ctrl);
+  ctrl.id = V4L2_CID_AUTOGAIN;
+  ctrl.value = exposure;
+  if (my_ioctl(self->fd, VIDIOC_S_CTRL, &ctrl)) {
+    return NULL;
+  }
+  return Py_BuildValue("b", ctrl.value);
+#else
+	return NULL;
+#endif
+}
+
+static PyObject *Video_device_get_autogain(
+		Video_device * self) {
+#ifdef V4L2_CID_AUTOGAIN
+	struct v4l2_control ctrl;
+  CLEAR(ctrl);
+  ctrl.id = V4L2_CID_AUTOGAIN;
+  if (my_ioctl(self->fd, VIDIOC_G_CTRL, &ctrl)) {
+    return NULL;
+  }
+  return Py_BuildValue("b", ctrl.value);
+#else
+	return NULL;
 #endif
 }
 
@@ -971,6 +1045,28 @@ static PyMethodDef Video_device_methods[] = {
    (PyCFunction) Video_device_get_white_balance_temperature, METH_NOARGS,
    "get_white_balance_temperature() -> temp \n\n"
    "Request the video device to get white balance temperature value. "},
+
+  {"set_gain", (PyCFunction) Video_device_set_gain,
+		  METH_VARARGS,
+		  "set_gain(gain) -> gain \n\n"
+				  "Request the video device to set gain to value. The device may "
+				  "choose another value than requested and will return its choice. "},
+  {"get_gain", (PyCFunction) Video_device_get_gain,
+		  METH_NOARGS,
+		  "get_gain() -> gain \n\n"
+				  "Request the video device to get gain value. "},
+
+  {"set_autogain", (PyCFunction) Video_device_set_autogain,
+		  METH_VARARGS,
+		  "set_autogain(autogen) -> autogen \n\n"
+				  "Request the video device to set autogain to bool. The device may "
+				  "choose another value than requested and will return its choice. "},
+  {"get_autogain", (PyCFunction) Video_device_get_autogain,
+		  METH_NOARGS,
+		  "get_autogain() -> gain \n\n"
+				  "Request the video device to get autogain bool. "},
+
+
   {"set_exposure_auto", (PyCFunction) Video_device_set_exposure_auto,
    METH_VARARGS,
    "set_exposure_auto(autoexp) -> autoexp \n\n"
@@ -1003,7 +1099,7 @@ static PyMethodDef Video_device_methods[] = {
   {"get_focus_absolute", (PyCFunction) Video_device_get_focus_absolute, METH_NOARGS,
    "get_focus_absolute() -> focus_absolute \n\n"
    "Request the video device to get the focus value. "},
-  {"set_sharpness", (PyCFunction) Video_device_set_focus_absolute, METH_VARARGS,
+  {"set_sharpness", (PyCFunction) Video_device_set_sharpness, METH_VARARGS,
    "set_sharpness(sharpness) -> sharpness \n\n"
    "Request the video device to set the sharpness to the given value. The device may "
    "choose another value than requested and will return its choice. "},
