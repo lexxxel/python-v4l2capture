@@ -27,22 +27,48 @@ Installation
 
 v4l2capture requires libv4l by default. You can compile v4l2capture
 without libv4l, but that reduces image format support to YUYV input
-and RGB output only. You can do so by erasing ', libraries = ["v4l2"]'
-in setup.py and erasing '#define USE_LIBV4L' in v4l2capture.c.
+and RGB output only. You can do so by commenting the line:
 
-python-v4l2capture uses distutils.
-To build: ./setup.py build
-To build and install: ./setup.py install
+	libraries=["v4l2"], extra_compile_args=['-DUSE_LIBV4L', ],
 
-Example
-=======
+in setup.py.
 
-See capture_picture.py, capture_picture_delayed.py and list_devices.py.
+python-v4l2capture uses distutils. To build:
+
+	./setup.py build
+
+To build and install:
+
+	./setup.py install
+
+Examples
+========
+
+The script list\_devices.py lists all video4linux devices and it's capabilities
+(as seen by python-v4l2capture).
+
+The script capture\_picture.py shows a simple one-shot immediate capture of a
+picture. The image is stored to a file "image.jpg".
+
+The script capture\_picture\_delayed.py wait some seconds to allow the
+auto-exposure to take place. The image is stored to a file "image.jpg".
+
+The script capture\_video.py takes a video and stores it to a file
+"video.mjpg". It stopps after 10 sec of recording automatically.
+
+The program filmroller.py provided a gui to take captures from a webcam. It
+switches resolution between lowest resolution (for a live view) and highest
+resolution (for the snapshot). It is quite useful to be used with slide and
+negative film scanners.
+
+![Sample picture of scanner](filmroller.device.jpg)
 
 Change log
 ==========
 
 (see git log for latest changes)
+
+(2014-12-26) - Added framesize and frameinterval getters.
 
 1.4 (2011-03-18) - Added support for YUV420 output.
 

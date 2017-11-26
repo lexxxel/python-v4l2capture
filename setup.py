@@ -13,7 +13,7 @@
 from distutils.core import Extension, setup
 setup(
     name = "v4l2capture",
-    version = "1.5",
+    version = "1.7",
     author = "Fredrik Portstrom",
     author_email = "fredrik@jemla.se",
     url = "http://fredrik.jemla.eu/v4l2capture",
@@ -25,4 +25,6 @@ setup(
         "License :: Public Domain",
         "Programming Language :: C"],
     ext_modules = [
-        Extension("v4l2capture", ["v4l2capture.c"], libraries = ["v4l2"])])
+        Extension("v4l2capture", ["v4l2capture.c"],
+        libraries=["v4l2"], extra_compile_args=['-DUSE_LIBV4L', ],
+        )])
