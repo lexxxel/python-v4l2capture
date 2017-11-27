@@ -1,6 +1,6 @@
 #!/usr/bin/python
 #
-# python-v4l2capture
+# python-v4l2captureext
 #
 # 2009, 2010 Fredrik Portstrom
 #

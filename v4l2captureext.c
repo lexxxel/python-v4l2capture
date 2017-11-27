@@ -1,4 +1,4 @@
-// python-v4l2capture
+// python-v4l2captureext
 // Python extension to capture video with video4linux2
 //
 // 2009, 2010, 2011 Fredrik Portstrom
@@ -1144,7 +1144,7 @@ static PyTypeObject Video_device_type = {
 #else
   PyVarObject_HEAD_INIT(NULL, 0)
 #endif
-    "v4l2capture.Video_device", sizeof(Video_device), 0,
+    "v4l2captureext.Video_device", sizeof(Video_device), 0,
   (destructor) Video_device_dealloc, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, Py_TPFLAGS_DEFAULT, "Video_device(path)\n\nOpens the video device at "
     "the given path and returns an object that can capture images. The "
@@ -1158,10 +1158,10 @@ static PyMethodDef module_methods[] = {
 };
 
 #if PY_MAJOR_VERSION < 3
-PyMODINIT_FUNC initv4l2capture(
+PyMODINIT_FUNC initv4l2captureext(
   void)
 #else
-PyMODINIT_FUNC PyInit_v4l2capture(
+PyMODINIT_FUNC PyInit_v4l2captureext(
   void)
 #endif
 {
@@ -1178,12 +1178,12 @@ PyMODINIT_FUNC PyInit_v4l2capture(
   PyObject *module;
 
 #if PY_MAJOR_VERSION < 3
-  module = Py_InitModule3("v4l2capture", module_methods,
+  module = Py_InitModule3("v4l2captureext", module_methods,
                           "Capture video with video4linux2.");
 #else
   static struct PyModuleDef moduledef = {
     PyModuleDef_HEAD_INIT,
-    "v4l2capture",
+    "v4l2captureext",
     "Capture video with video4linux2.",
     -1,
     module_methods,

@@ -1,9 +1,9 @@
 #!/usr/bin/python
 #
-# python-v4l2capture
+# python-v4l2captureext
 #
 # This file is an example on how to capture a picture with
-# python-v4l2capture. It waits between starting the video device and
+# python-v4l2captureext. It waits between starting the video device and
 # capturing the picture, to get a good picture from cameras that
 # require a delay to get enough brightness. It does not work with some
 # devices that require starting to capture pictures immediatly when
