@@ -13,10 +13,9 @@
 from distutils.core import Extension, setup
 setup(
     name = "v4l2captureext",
-    version = "1.7",
-    author = "Fredrik Portstrom",
-    author_email = "fredrik@jemla.se",
-    url = "http://fredrik.jemla.eu/v4l2capture",
+    version = "2.0",
+    author = "Alexander Pitzer",
+    author_email = "pitzer.a@eppendorf.de",
     description = "Capture video with video4linux2",
     long_description = "python-v4l2captureext is a slim and easy to use Python "
     "extension for capturing video with video4linux2.",

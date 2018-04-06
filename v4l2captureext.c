@@ -83,7 +83,9 @@ static int my_ioctl(
   // Retry ioctl until it returns without being interrupted.
   int result = -1;
   while (result < 0) {
+    Py_BEGIN_ALLOW_THREADS
     result = v4l2_ioctl(fd, request, arg);
+    Py_END_ALLOW_THREADS
     if (result < 0 && errno != EINTR) {
       PyErr_SetFromErrno(PyExc_IOError);
       return 1;
@@ -223,7 +225,7 @@ static PyObject *Video_device_set_format(
   CLEAR(format);
   format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
   /*
-     Get the current format 
+     Get the current format
    */
   if (my_ioctl(self->fd, VIDIOC_G_FMT, &format)) {
     return NULL;
@@ -293,7 +295,7 @@ static PyObject *Video_device_get_format(
   format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 
   /*
-     Get the current format 
+     Get the current format
    */
   if (my_ioctl(self->fd, VIDIOC_G_FMT, &format)) {
     return NULL;
@@ -346,8 +348,7 @@ static PyObject *Video_device_set_auto_white_balance(
 #endif
 }
 
-static PyObject *Video_device_get_auto_white_balance(
-  Video_device * self) {
+static PyObject *Video_device_get_auto_white_balance(Video_device * self) {
 #ifdef V4L2_CID_AUTO_WHITE_BALANCE
   struct v4l2_control ctrl;
   CLEAR(ctrl);
@@ -359,6 +360,50 @@ static PyObject *Video_device_get_auto_white_balance(
 #else
   return NULL;
 #endif
+}
+
+static PyObject *Video_device_get_controls(Video_device * self) {
+    PyObject *ret = Py_None;
+    if (0 == (ret = PyDict_New()))
+        return NULL;
+    struct v4l2_queryctrl queryctrl;
+    CLEAR(queryctrl);
+
+    for (queryctrl.id = V4L2_CID_BASE; queryctrl.id < V4L2_CID_LASTP1; queryctrl.id++) {
+        if (0 == my_ioctl(self->fd, VIDIOC_QUERYCTRL, &queryctrl)){
+            if (queryctrl.flags & V4L2_CTRL_FLAG_DISABLED)
+                continue;
+
+            PyDict_SetItemString(ret, queryctrl.name, Py_BuildValue(
+                    "{s:I,s:i,s:i,s:i,s:i,s:I}",
+                    "type",     queryctrl.type,
+                    "minimum",  queryctrl.minimum,
+                    "maximum",  queryctrl.maximum,
+                    "step",     queryctrl.step,
+                    "default_value",    queryctrl.default_value,
+                    "flags",    queryctrl.flags
+            ));
+        }
+    }
+
+    for (queryctrl.id = V4L2_CID_CAMERA_CLASS_BASE; queryctrl.id < V4L2_CID_TILT_SPEED; queryctrl.id++) {
+        if (0 == my_ioctl(self->fd, VIDIOC_QUERYCTRL, &queryctrl)){
+            if (queryctrl.flags & V4L2_CTRL_FLAG_DISABLED)
+                continue;
+
+            PyDict_SetItemString(ret, queryctrl.name, Py_BuildValue(
+                    "{s:I,s:i,s:i,s:i,s:i,s:I}",
+                    "type",     queryctrl.type,
+                    "minimum",  queryctrl.minimum,
+                    "maximum",  queryctrl.maximum,
+                    "step",     queryctrl.step,
+                    "default_value",    queryctrl.default_value,
+                    "flags",    queryctrl.flags
+            ));
+        }
+    }
+    PyErr_Clear();
+    return ret;
 }
 
 static PyObject *Video_device_set_white_balance_temperature(
@@ -952,7 +997,11 @@ static PyObject *Video_device_read_internal(
     return NULL;
   }
 
+#if PY_MAJOR_VERSION < 3
   char *rgb = PyString_AS_STRING(result);
+#else
+      char *rgb = PyBytes_AS_STRING(result);
+#endif
   char *rgb_max = rgb + length;
   unsigned char *yuyv = self->buffers[buffer.index].start;
 
@@ -1036,6 +1085,10 @@ static PyMethodDef Video_device_methods[] = {
    (PyCFunction) Video_device_get_auto_white_balance, METH_NOARGS,
    "get_auto_white_balance() -> autowb \n\n"
    "Request the video device to get auto white balance value. "},
+  {"get_controls",
+          (PyCFunction) Video_device_get_controls, METH_NOARGS,
+          "get_controls() -> controls \n\n"
+                  "Request the list of controls that are supported by the video device."},
   {"set_white_balance_temperature",
    (PyCFunction) Video_device_set_white_balance_temperature, METH_VARARGS,
    "set_white_balance_temperature(temp) -> temp \n\n"
