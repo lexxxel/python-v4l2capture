@@ -2,7 +2,7 @@ python-v4l2capture 2.0
 Python extension to capture video with video4linux2
 
 2009, 2010, 2011 Fredrik Portstrom  
-2011 Joakim Gebart
+2011 Joakim Gebart  
 2017, 2018 Alexander Pitzer
 
 I, the copyright holder of this file, hereby release it into the
